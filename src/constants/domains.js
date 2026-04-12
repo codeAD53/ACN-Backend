@@ -1,0 +1,10 @@
+export const DOMAINS = ["Web Development",
+        "Mobile Development",
+        "Machine Learning",
+        "Data Science",
+        "DevOps",
+        "CyberSecurity",
+        "Finance",
+        "Product Management",
+        "Other",
+    ]
