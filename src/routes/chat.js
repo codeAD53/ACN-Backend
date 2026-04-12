@@ -5,6 +5,7 @@ import { protect, requireVerified } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
+//protect
 router.use(protect,requireVerified);
 
 // router.get('/',(req,res)=>{
