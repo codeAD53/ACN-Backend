@@ -1,3 +1,5 @@
+# Initialize CodeRabbit
+
 reviews:
       auto_review:
             enabled: true
