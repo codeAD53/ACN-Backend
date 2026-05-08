@@ -10,6 +10,13 @@ const PRESENCE_TTL = 30 * 60;
 const refreshPresence = async (userId) => {
     try {
         const presenceKey = `presence:${userId}`;
+        // Check if key exists; if not, log warning (socket is already tracked, shouldn't happen)
+        const exists = await redisClient.exists(presenceKey);
+        if (!exists) {
+            console.warn(`Presence key missing for user ${userId}, TTL may have expired`);
+            return;
+        }
+        // Refresh TTL by expiring the key
         await redisClient.expire(presenceKey, PRESENCE_TTL);
     } catch (error) {
         console.error('Redis presence refresh error:', error);
@@ -19,6 +26,10 @@ const refreshPresence = async (userId) => {
 const socketHandler = (io) => {
     io.on("connection", async (socket) => {
         const userId = socket.user._id.toString();
+        // Start heartbeat: refresh presence every 15 minutes (half of 30-minute TTL)
+        socket._presenceHeartbeat = setInterval(() => {
+            refreshPresence(userId);
+        }, (PRESENCE_TTL * 1000 / 2));
         console.log(`🟢 User connected: ${socket.user.name} (${userId})`);
 
         // ---Online Presence-------
@@ -147,15 +158,22 @@ const socketHandler = (io) => {
                     }
                 }
 
-                for(const member of offlineMembers){
-                    await createNotification({
+                const notificationResults = await Promise.allSettled(
+                    offlineMembers.map((member)=>
+                    createNotification({
                         recipient: member._id,
                         sender: userId,
                         type: "message",
                         message: `${socket.user.name} sent you a message`,
                         reference: chatId,
                         referenceModel: "Chat"
-                    });
+                    })
+                    )
+                );
+                for(const result of notificationResults){
+                    if(result.status === "rejected"){
+                        console.error("notification create error",result.reason);
+                    }
                 }
             } catch (error) {
                 socket.emit("error", {message: "Failed to send message"});
@@ -164,6 +182,10 @@ const socketHandler = (io) => {
 
         //Typing Indicators
         socket.on("typing:start", ({chatId}) => {
+            if(!socket.rooms.has(chatId)){
+                socket.emit("error",{message:"Chat not joined or access denied"});
+                return;
+            }
             socket.to(chatId).emit("typing:start", {
                 chatId,
                 userId,
@@ -172,6 +194,10 @@ const socketHandler = (io) => {
         });
 
         socket.on("typing:stop", ({chatId})=>{
+            if(!socket.rooms.has(chatId)){
+                socket.emit("error",{message: "Chat not joined or access denied"});
+                return;
+            }
             socket.to(chatId).emit("typing:stop", {
                 chatId,
                 userId,
@@ -239,6 +265,10 @@ const socketHandler = (io) => {
 
         //Disconnect
         socket.on("disconnect", async ()=>{
+            // Clear presence heartbeat
+            if (socket._presenceHeartbeat) {
+                clearInterval(socket._presenceHeartbeat);
+            }
             const presenceKey = `presence:${userId}`;
             const socketKey = socket.id;
 
