@@ -1,25 +1,54 @@
 import MessageSchema from "../models/MessageSchema.js";
 import ChatSchema from "../models/ChatSchema.js"
 import {createNotification} from "../controllers/notificationController.js"
+import { redisClient } from "../config/db.js";
 
-//Track online users: userId -> socketId
-const onlineUsers = new Map();
+//Presence TTL in seconds (30 minutes)
+const PRESENCE_TTL = 30 * 60;
+
+// Helper function to refresh presence TTL
+const refreshPresence = async (userId) => {
+    try {
+        const presenceKey = `presence:${userId}`;
+        await redisClient.expire(presenceKey, PRESENCE_TTL);
+    } catch (error) {
+        console.error('Redis presence refresh error:', error);
+    }
+};
 
 const socketHandler = (io) => {
-    io.on("connection", (socket) => {
+    io.on("connection", async (socket) => {
         const userId = socket.user._id.toString();
         console.log(`🟢 User connected: ${socket.user.name} (${userId})`);
 
         // ---Online Presence-------
 
-        //Register user as online
-        onlineUsers.set(userId, socket.id);
+        //Register user as online (multi-tab support)
+        const presenceKey = `presence:${userId}`;
+        const socketKey = socket.id;
 
-        //Broadcast to everyone that this user is online
-        socket.broadcast.emit("user:online", {userId});
+        try {
+            // Add socket to user's presence set
+            await redisClient.sAdd(presenceKey, socketKey);
+            // Set TTL for presence (refreshed on activity)
+            await redisClient.expire(presenceKey, PRESENCE_TTL);
 
-        //Send current online users list to the newly connected user
-        socket.emit("users:online", Array.from(onlineUsers.keys()));
+            // Check if this is the first connection for this user
+            const socketCount = await redisClient.sCard(presenceKey);
+            const isFirstConnection = socketCount === 1;
+
+            //Broadcast to everyone that this user is online (only on first connection)
+            if (isFirstConnection) {
+                socket.broadcast.emit("user:online", {userId});
+            }
+
+            //Send current online users list to the newly connected user
+            const onlineUserIds = await redisClient.keys('presence:*');
+            const onlineUsers = onlineUserIds.map(key => key.replace('presence:', ''));
+            socket.emit("users:online", onlineUsers);
+        } catch (error) {
+            console.error('Redis presence error on connect:', error);
+        }
 
         //JOIN CHAT ROOMS
 
@@ -33,7 +62,6 @@ const socketHandler = (io) => {
 
                 if(!chat){
                     socket.emit("error",{ message: "Chat not found or access denied"})
-
                     return;
 
                 }
@@ -53,6 +81,9 @@ const socketHandler = (io) => {
 
         socket.on("message:send", async (data) => {
             try {
+                // Refresh presence on activity
+                await refreshPresence(userId);
+
                 const {chatId, encryptedContent, iv} = data;
                 //Validate required fields
                 if(!chatId || !encryptedContent || !iv){
@@ -60,7 +91,7 @@ const socketHandler = (io) => {
                     return;
                 }
 
-                //Verify user is number of this chat
+                //Verify user is member of this chat
                 const chat = await ChatSchema.findOne({
                     _id: chatId,
                     participants: userId,
@@ -77,17 +108,16 @@ const socketHandler = (io) => {
                     chatId,
                     senderId: userId,
                     encryptedContent, //store only encrypted content
-                    iv, //initialization vector for dercryption
+                    iv, //initialization vector for decryption
                 });
+
+                // Populate sender info before updating the chat so any populate error happens first
+                await message.populate("senderId","name avatar");
 
                 //Update chat's last message
                 await ChatSchema.findByIdAndUpdate(chatId, {
                     lastMessage: message._id,
-                    updatedAt: new Date(),
                 });
-
-                //Populate sender info before broadcasting
-                await message.populate("senderId","name avatar");
 
                 //Broadcast to all members in the chat room
                 io.to(chatId).emit("message:receive",{
@@ -100,7 +130,22 @@ const socketHandler = (io) => {
                 });
 
                 //Send Notification to offline members
-                const offlineMembers = chat.participants.filter((member)=>member._id.toString() !== userId && !onlineUsers.has(member._id.toString()));
+                const offlineMembers = [];
+                for (const member of chat.participants) {
+                    const memberId = member._id.toString();
+                    if (memberId === userId) continue;
+
+                    try {
+                        const isOnline = await redisClient.exists(`presence:${memberId}`);
+                        if (!isOnline) {
+                            offlineMembers.push(member);
+                        }
+                    } catch (error) {
+                        console.error('Redis presence check error:', error);
+                        // If Redis fails, assume offline to be safe
+                        offlineMembers.push(member);
+                    }
+                }
 
                 for(const member of offlineMembers){
                     await createNotification({
@@ -137,9 +182,48 @@ const socketHandler = (io) => {
 
         socket.on("message:read", async ({chatId, messageId}) => {
             try {
-                await MessageSchema.findByIdAndUpdate(messageId, {
-                    $addToSet: {readBy: userId},
-                });
+                // Refresh presence on activity
+                await refreshPresence(userId);
+
+                const message = await MessageSchema.findById(messageId);
+                if (!message) {
+                    socket.emit("error", {message: "Message not found"});
+                    return;
+                }
+
+                if (message.chatId.toString() !== chatId) {
+                    console.error(`Unauthorized: message ${messageId} does not belong to chat ${chatId}`);
+                    socket.emit("error", {message: "Unauthorized access to message"});
+                    return;
+                }
+
+                
+                const chat = await ChatSchema.findById(chatId);
+                if (!chat) {
+                    socket.emit("error", {message: "Chat not found"});
+                    return;
+                }
+
+                const isParticipant = chat.participants.some(participant =>
+                    participant.toString() === userId
+                );
+
+                if (!isParticipant) {
+                    socket.emit("error", {message: "Chat not found or access denied"});
+                    return;
+                }
+
+                
+                const updated = await MessageSchema.findByIdAndUpdate(
+                    messageId,
+                    { $addToSet: { readBy: userId } },
+                    {new: true}
+                );
+
+                if (!updated) {
+                    socket.emit("error", {message: "Failed to mark message as read"});
+                    return;
+                }
 
                 //NOTIFY OTHER MEMBERS
                 socket.to(chatId).emit("message:read", {
@@ -148,14 +232,33 @@ const socketHandler = (io) => {
                     readBy: userId,
                 })
             } catch (error) {
-                console.error("message:read error",error);
+                console.error("message:read error", error);
+                socket.emit("error", {message: "Failed to mark message as read"});
             }
         });
 
         //Disconnect
-        socket.on("disconnect",()=>{
-            onlineUsers.delete(userId);
-            socket.broadcast.emit("user:offline", {userId});
+        socket.on("disconnect", async ()=>{
+            const presenceKey = `presence:${userId}`;
+            const socketKey = socket.id;
+
+            try {
+                // Remove socket from user's presence set
+                await redisClient.sRem(presenceKey, socketKey);
+
+                // Check if user has any remaining sockets
+                const remainingSockets = await redisClient.sCard(presenceKey);
+
+                //Only emit user:offline when all sockets are disconnected
+                if (remainingSockets === 0) {
+                    // Clean up the presence key
+                    await redisClient.del(presenceKey);
+                    socket.broadcast.emit("user:offline", {userId});
+                }
+            } catch (error) {
+                console.error('Redis presence error on disconnect:', error);
+            }
+
             console.log(`User disconnected: ${socket.user.name} (${userId})`);
         });
 
