@@ -1,6 +1,6 @@
 import express from "express";
 
-import { sendConnectionRequest, getMyConnections, getIncomingRequests, acceptConnection, rejectConnection, withdrawConnection } from './controllers/connectionController.js';
+import { sendConnectionRequest, getMyConnections, getIncomingRequests, acceptConnection, rejectConnection, withdrawConnection } from '../controllers/connectionController.js';
 import { protect, requireApproved,requireVerified } from "../middlewares/authMiddleware.js";
 
 import { connectionRequestRules,validate } from "../middlewares/validateMiddleware.js";

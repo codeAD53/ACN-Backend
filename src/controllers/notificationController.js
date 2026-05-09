@@ -1,5 +1,5 @@
-import NotificationSchema from "../models/NotificationSchema";
-import { AppError } from "../middlewares/errorMiddleware";
+import NotificationSchema from "../models/NotificationSchema.js";
+import { AppError } from "../middlewares/errorMiddleware.js";
 
 // ─── GET /api/notifications
 

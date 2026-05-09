@@ -16,9 +16,9 @@ export const register = async (req,res,next) => {
         }
          // Only allow student or alumni on self-register (not admin) // Only allow student or alumni on self-register (not admin)
 
-         const allowedRoles = ["student", "admin"];
-         if(role && !allowedRoles.includes(req.user.role)){
-            return res.status(400).json({success: false, message: "Invalid Role"});
+         const allowedRoles = ["student", "alumni"];
+         if(role && !allowedRoles.includes(role)){
+            return res.status(400).json({success: false, message: "Invalid Role. Self Registration only allows students and admins."});
          }
 
          const emailVerifyToken = crypto.randomBytes(32).toString("hex");
@@ -97,7 +97,7 @@ export const login = async (req,res,next) => {
             return res.status(401).json({success: false, message: "Invalid email or password"});
         }
 
-        const isMatch = await UserSchema.comparePassword(password);
+        const isMatch = await user.comparePassword(password);
         if(!isMatch){
             return res.status(401).json({success: false, message: "Invalid email or password"});
         }
@@ -157,7 +157,7 @@ export const refreshToken = async (req,res,next) =>{
             return res.status(401).json({success: false, message: "Invalid or expired refresh token"})
         }
 
-        const user = UserSchema.findById(decoded.id).select("+refreshTokens");
+        const user = await UserSchema.findById(decoded.id).select("+refreshTokens");
         if(!user || !user.refreshTokens.includes(token)){
             if(user){
                 user.refreshTokens = [];
@@ -167,7 +167,7 @@ export const refreshToken = async (req,res,next) =>{
         }
 
         const newRefreshToken = generateRefreshToken(user._id);
-        user.refreshTokens = user.refreshTokens.filter((t)=> t!== token);
+        user.refreshTokens = user.refreshTokens.filter((t)=> t !== token);
         user.refreshTokens.push(newRefreshToken);
         await user.save({validateBeforeSave: false});
 
@@ -226,7 +226,7 @@ export const forgotPassword = async(req,res,next) => {
             const resetToken = crypto.randomBytes(32).toString("hex");
             user.passwordResetToken = resetToken;
             user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000) //1hr
-            await user.dave({validateBeforeSave: false});
+            await user.save({validateBeforeSave: false});
 
             try {
                 await sendPasswordResetEmail(user,resetToken);

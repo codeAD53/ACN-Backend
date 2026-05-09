@@ -1,6 +1,10 @@
 import jwt from "jsonwebtoken";
-import  cookie  from "cookie";
+import cookie  from "cookie";
 import UserSchema from "../models/UserSchema.js";
+import { redisClient, isRedisReady } from "../config/db.js";
+
+// Cache TTL: 5 minutes — short enough to reflect suspensions quickly
+const USER_CACHE_TTL = 5 * 60;
 
 const socketAuth = async (socket,next) => {
     try {
@@ -26,17 +30,55 @@ const socketAuth = async (socket,next) => {
             return next(new Error("Authentication error: Invalid token payload"))
         }
 
-        //GET USER FROM DB
-        let user;
-        try {
-            user = await UserSchema.findById(decoded.id).select("-password");
-        } catch (dbError) {
-            console.error("Database error fetching user:", dbError);
-            return next(new Error("Authentication error: Invalid Token"));
+        const userId = decoded.id;
+
+        //GET USER FROM DB (Redis cache -> DB fallback)
+        let user = null;
+        if(isRedisReady()){
+            try {
+                const cached = await redisClient.get(`user:${userId}`);
+                if(cached){
+                    user = JSON.parse(cached);
+                }
+            } catch (cacheError) {
+                console.warn("Redis user cache read failed:",cacheError.message);
+            }
+        }
+        if(!user){
+            try {
+                const dbUser = await UserSchema.findById(userId).select("-password -refreshTokens").lean();
+
+                if(!dbUser){
+                    return next(new Error("Authentication error: User not found"));
+                }
+                user = dbUser;
+
+                //Populate cache for next reconnect
+                if(isRedisReady()){
+                    try {
+                        await redisClient.setEx(
+                            `user:${userId}`,
+                            USER_CACHE_TTL,
+                            JSON.stringify(user)
+                        );
+                    } catch (cacheWriteError) {
+                        console.log("Redis user cache write failed:",cacheWriteError.message)
+                    }
+                }
+            } catch (dbError) {
+                console.error("Database error fetching user:", dbError);
+                return next(new Error("Authentication error: Service Unavailable"));
+            }
+        }
+            
+
+
+        if(!user.isVerified){
+            return next(new Error("Authentication error: Email not verified"));
         }
 
-        if(!user){
-            return next(new Error("Authentication Error: User not found"));
+        if (!user.isApproved) {
+            return next(new Error("Authentication error: Account pending approval"));
         }
 
         //Attach user to socket

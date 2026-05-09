@@ -1,5 +1,5 @@
 import express from "express";
-import { getOrCreateChats, createGroupChat, getMyChats,  } from './controllers/chatController.js';
+import { getOrCreateChats, createGroupChat, getMyChats,  } from '../controllers/chatController.js';
 
 import { protect, requireVerified } from "../middlewares/authMiddleware.js";
 

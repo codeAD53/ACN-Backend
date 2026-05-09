@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const connectionSchema = new mongoose.Schema({
+const ConnectionSchema = new mongoose.Schema({
     requesterId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
@@ -12,7 +12,7 @@ const connectionSchema = new mongoose.Schema({
         required: true,
     },
     type: {
-        connectionType: String,
+        type: String,
         enum: ["mentorship", "referral"],
         required: true,
     },
@@ -30,9 +30,12 @@ const connectionSchema = new mongoose.Schema({
 );
 
 //Prevent duplicate requests
-connectionSchema.index(
+ConnectionSchema.index(
     {requesterId: 1, targetId: 1, type: 1},
     {unique: true}
 );
 
-export default mongoose.model("Connection",connectionSchema);
+ConnectionSchema.index({ targetId: 1, status: 1});
+ConnectionSchema.index({requesterId: 1, status: 1});
+
+export default mongoose.model("Connection",ConnectionSchema);

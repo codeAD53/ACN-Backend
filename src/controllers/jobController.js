@@ -1,5 +1,5 @@
-import JobSchema from "../models/JobSchema";
-import { AppError } from "../middlewares/errorMiddleware";
+import JobSchema from "../models/JobSchema.js";
+import { AppError } from "../middlewares/errorMiddleware.js";
 
 // POST /api/jobs
 export const createJob = async (req,res,next) => {

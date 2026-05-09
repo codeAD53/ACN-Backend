@@ -1,6 +1,6 @@
-import { Connection } from "mongoose";
-import UserSchema from "../models/UserSchema";
-import { AppError } from "../middlewares/errorMiddleware";
+import ConnectionSchema from "../models/ConnectionSchema.js"
+import UserSchema from "../models/UserSchema.js";
+import { AppError } from "../middlewares/errorMiddleware.js";
 
 // ─── POST /api/connections
 export const sendConnectionRequest = async (req,res,next) => {

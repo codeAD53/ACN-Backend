@@ -1,6 +1,6 @@
-import GallerySchema from "../models/GallerySchema";
-import { AppError } from "../middlewares/errorMiddleware";
-import { deleteFromCloudinary } from "../middlewares/uploadMiddleware";
+import GallerySchema from "../models/GallerySchema.js";
+import { AppError } from "../middlewares/errorMiddleware.js";
+import { deleteFromCloudinary } from "../middlewares/uploadMiddleware.js";
 
 //POST /api/gallery
 export const uploadImage = async (req,res,next) => {

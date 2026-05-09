@@ -14,6 +14,16 @@ const MessageSchema = new mongoose.Schema({
     content:{
         type: String,
         trim: true,
+        default: null,
+    },
+    //E2EE fields
+    encryptedContent: {
+        type: String,
+        default: null,
+    },
+    iv:{
+        type: String, //Initialising vector for AES decryption
+        default: null,
     },
     mediaUrl: {
         type: String,
@@ -27,19 +37,22 @@ const MessageSchema = new mongoose.Schema({
     readBy: [
         {
          type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+         ref: "User",
         },
     ],
-    validate: {
-        validator: function(){
-            return this.content || this.mediaUr;
-        },
-        message: "Message must have content or media"
-    }
 },
- {timestamps: true})
+ { timestamps: true,
+     validate: {
+        validator: function(){
+            return this.content || this.encryptedContent || this.mediaUrl;
+        },
+        message: "Message must have content or media",
+    },
+  }
+);
 
 MessageSchema.index({chatId: 1, createdAt: -1});
 MessageSchema.index({senderId: 1});
+
 
 export default mongoose.model("Message",MessageSchema);

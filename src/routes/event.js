@@ -1,8 +1,8 @@
 import express from "express";
 
-import { createEvent, getEvents, getEventById, updateEvent, deleteEvent, rsvpEvent, cancelRsvp, getAttendees } from './controllers/eventController.js';
+import { createEvent, getEvents, getEventById, updateEvent, deleteEvent, rsvpEvent, cancelRsvp, getAttendees } from '../controllers/eventController.js';
 
-import {  uploadEventBanner} from './middlewares/uploadMiddleware.js';
+import {  uploadEventBanner} from '../middlewares/uploadMiddleware.js';
 
 import { createEventRules, validate } from "../middlewares/validateMiddleware.js";
 import { protect,requireApproved,requireVerified } from "../middlewares/authMiddleware.js";

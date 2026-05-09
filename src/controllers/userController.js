@@ -1,6 +1,6 @@
-import UserSchema from '../models/UserSchema'
-import { AppError } from '../middlewares/errorMiddleware'
-import { deleteFromCloudinary } from '../middlewares/uploadMiddleware'
+import UserSchema from '../models/UserSchema.js'
+import { AppError } from '../middlewares/errorMiddleware.js'
+import { deleteFromCloudinary } from '../middlewares/uploadMiddleware.js'
 
 //  ─── GET /api/users/me 
 

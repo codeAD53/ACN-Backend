@@ -1,6 +1,6 @@
-import EventSchema from "../models/EventSchema";
-import { AppError } from "../middlewares/errorMiddleware";
-import { deleteFromCloudinary } from "../middlewares/uploadMiddleware";
+import EventSchema from "../models/EventSchema.js";
+import { AppError } from "../middlewares/errorMiddleware.js";
+import { deleteFromCloudinary } from "../middlewares/uploadMiddleware.js";
 
 //POST /api/events
 export const createEvent = async (req,res,next) => {

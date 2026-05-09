@@ -1,5 +1,5 @@
 import express from "express";
-import { getGallery, approveImage, deleteImage, uploadImage, toggleLike, getPendingImages } from './controllers/galleryController.js';
+import { getGallery, approveImage, deleteImage, uploadImage, toggleLike, getPendingImages } from '../controllers/galleryController.js';
 
 import { protect, restrictTo, requireVerified } from "../middlewares/authMiddleware.js";
 

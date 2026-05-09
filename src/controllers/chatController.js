@@ -1,6 +1,6 @@
-import ChatSchema from "../models/ChatSchema";
-import MessageSchema from "../models/MessageSchema";
-import { AppError } from "../middlewares/errorMiddleware";
+import ChatSchema from "../models/ChatSchema.js";
+import MessageSchema from "../models/MessageSchema.js";
+import { AppError } from "../middlewares/errorMiddleware.js";
 
 // ════════════════════════════════════════════════════
 // CHAT CONTROLLERS
@@ -26,7 +26,7 @@ export const getOrCreateChats = async (req,res,next) => {
 
             if(!chat){
                 chat = await ChatSchema.create({
-                    participantId: [req.user._id, participantId],
+                    participants: [req.user._id, participantId],
                     isGroup: false,
                 });
                 await chat.populate("participants", "name profilePicture role");
@@ -86,8 +86,8 @@ export const sendMessage = async (req,res,next) => {
     try {
         const {chatId, content, mediatype} = req.body;
 
-        if(!chats) return next(new AppError("Chat ID is required", 400));
-        if(!content && req.file) return next(new AppError("Message must have content or media", 400));
+        if(!chatId) return next(new AppError("Chat ID is required", 400));
+        if(!content && !req.file) return next(new AppError("Message must have content or media", 400));
 
         // Verify the sender is a participant
         const chat = await ChatSchema.findOne({_id: chatId, participants: req.user._id});
@@ -97,9 +97,9 @@ export const sendMessage = async (req,res,next) => {
             chatId,
             senderId: req.user._id,
             content: content || null,
-            mediaUrl: req.file?.path,
+            mediaUrl: req.file?.path || null,
             mediaUrl: req.file ? mediatype || "image" : null,
-            readby: [req.user._id], // sender has already "read" their own message
+            readBy: [req.user._id], // sender has already "read" their own message
         });
 
         await ChatSchema.findByIdAndUpdate(chatId, {lastMessage: message._id});
@@ -153,7 +153,7 @@ export const getMessages = async (req, res, next) => {
 // ─── DELETE /api/messages/:id ─────────────────────────────────
 export const deleteMessage = async (req, res, next) => {
   try {
-    const message = await Message.findById(req.params.id);
+    const message = await MessageSchema.findById(req.params.id);
     if (!message) return next(new AppError("Message not found", 404));
  
     if (message.senderId.toString() !== req.user._id.toString()) {

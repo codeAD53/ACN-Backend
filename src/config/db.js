@@ -29,5 +29,9 @@ const connectRedis = async () => {
     }
 };
 
+const isRedisReady = () => {
+    return redisClient.isReady;
+}
+
 export default connectDB;
-export { redisClient, connectRedis };
+export { redisClient, connectRedis, isRedisReady };

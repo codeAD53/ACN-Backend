@@ -1,7 +1,7 @@
-import {body, params, validateResult} from 'express-validator';
+import {body, param, validationResult} from 'express-validator';
 
 export const validate = (req,res,next) => {
-        const errors = validateResult(req);
+        const errors = validationResult(req);
         if(!errors.isEmpty()){
             return res.status(400).json({success: false, message: "Validation Failed", errors: errors.array().map((e)=> ({field: e.path, message: e.msg})),
         });
@@ -9,15 +9,15 @@ export const validate = (req,res,next) => {
         next();
 };
 
-export const registerRules = () => [
+export const registerRules =  [
     body("name")
         .trim()
         .notEmpty().withMessage("Name is required")
         .isLength({min: 2, max: 50}).withMessage("Name must be between 2 and 50 characters"),
     body("email")
         .trim()
-        .notEmpty().withMessage("Name is required")
-        .isLength({min: 2, max: 50 }).withMessage("Name must be between 2 and 50 characters.")
+        .notEmpty().withMessage("Email is required")
+        .isEmail().withMessage("Invalid email address")
         .normalizeEmail(),
 
         body("password")
@@ -28,7 +28,7 @@ export const registerRules = () => [
 
         body("role")
             .optional()
-            .isIn(["student", "alumni"]).withMessage("Role mest be student ot alumni"),
+            .isIn(["student", "alumni"]).withMessage("Role mest be student or alumni"),
         
         body("graduationYear")
             .if(body("role").equals("alumni"))

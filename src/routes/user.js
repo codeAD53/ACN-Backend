@@ -1,11 +1,11 @@
 import express from "express";
-import { getMe, updateMe, updateProfilePicture, getPendingUsers, getAlumni, getMentors, getUserById, approveUser, updateUserRole, deleteUser, getUsers } from './controllers/userController.js';
+import { getMe, updateMe, updateProfilePicture, getPendingUsers, getAlumni, getMentors, getUserById, approveUser, updateUserRole, deleteUser, getUsers } from '../controllers/userController.js';
 
-import { protect, restrictTo, requireVerified, requireApproved } from './middlewares/authMiddleware.js';
+import { protect, restrictTo, requireVerified, requireApproved } from '../middlewares/authMiddleware.js';
 
 import { uploadProfilePicture } from "../middlewares/uploadMiddleware.js";
 
-import { updateProfileRules } from "../middlewares/validateMiddleware.js";
+import { updateProfileRules, validate } from "../middlewares/validateMiddleware.js";
 
 
 const router = express.Router();

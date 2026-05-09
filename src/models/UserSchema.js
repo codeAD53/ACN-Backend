@@ -100,10 +100,9 @@ UserSchema.index({currentCompany: 1});
 UserSchema.index({role:1 , isApproved: 1});
 
 //Hash Password before saving
-UserSchema.pre("save", async function(next){
-    if(!this.isModified("passwordHash")) return next();
+UserSchema.pre("save", async function(){
+    if(!this.isModified("passwordHash")) return;
     this.passwordHash = await bcrypt.hash(this.passwordHash, 12);
-    next();
 });
 
 //Compare password method
